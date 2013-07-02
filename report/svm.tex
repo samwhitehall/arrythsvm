@@ -1,0 +1,209 @@
+\documentclass[paper=a4, fontsize=11pt]{scrartcl}
+
+\usepackage{inconsolata}
+
+\usepackage{fullpage}
+
+\usepackage[english]{babel}															
+\usepackage[protrusion=true,expansion=true]{microtype}				
+\usepackage{amsmath,amsfonts,amsthm}										
+\usepackage[pdftex]{graphicx}														
+\usepackage{url}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{xifthen}
+
+\usepackage{epsfig}
+
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks=true,
+	pdfborder={},
+}
+
+\usepackage{listings}
+\usepackage{color}
+\usepackage{colortbl}
+
+\definecolor{rowgrey}{gray}{0.9}
+ 
+\usepackage{fancyvrb}
+
+\usepackage{sectsty}												
+\allsectionsfont{\normalfont\scshape}	
+
+\usepackage{fancyhdr}
+\pagestyle{fancyplain}
+
+% captions for subfigures
+\usepackage[labelfont={footnotesize,bf,sc},textfont={footnotesize}]{caption}
+								
+\renewcommand{\headrulewidth}{0pt}			
+\renewcommand{\footrulewidth}{0pt}				
+\setlength{\headheight}{8pt}
+\linespread{1.15}
+
+\numberwithin{equation}{section}		
+\numberwithin{figure}{section}			
+\numberwithin{table}{section}				
+
+
+\title{
+		\vspace{-1in} 	
+		\usefont{OT1}{bch}{b}{n}
+		\normalfont \normalsize \textsc{School of Electronics and Computer Science
+		\\University of Southampton} \\ [25pt]
+		\vspace{-0.2in} 
+		\huge Arryhthmia Classification Using Support Vector Machines (SVMs)  \\
+		\vspace{0.1in} 
+		\large{Sam Whitehall}
+		\vspace{-0.8in} 
+}
+\date{}
+
+
+
+\begin{document}
+\maketitle
+
+\fancyhead[L]{}
+\fancyhead[R]{}														
+
+\section{Introduction} 
+
+In this report, a series of  binary cardiac arrhythmia classifiers, trained
+using the UCI Arrythmia data
+set\footnote{http://archive.ics.uci.edu/ml/datasets/Arrhythmia}, are tested and
+evaluated. The output of the classifier is 'N' (normal, negative) or 'A'
+(arrhythmic, positive), as there is a roughly equal split of this in the
+training data ($245/452 \approx 54\%$ is normal).  This is performed using the
+Support Vector Machine (SVM) algorithm, as this is typically seen as providing
+a good level of generalisation performance on a wide set of classification
+problems. The actual analysis is performed using the \texttt{e1071} package in
+the statistical programming language \texttt{R}, which provides an interface to
+the ubiquitous \texttt{libsvm} implementation. 
+
+The effects of kernel function choice, parameter tuning, feature normalisation
+and handling of missing data. Parameters are tuned using a grid search across
+orders of magnitude, and a generalisation performance estimate for each
+parameterisation by considering the classification error under 10-fold
+cross-validation.
+
+The R source files used can be found at
+\url{http://www.github.com/samwhitehall/arryth-svm}.
+
+\section{Basic Classifier}
+
+In this test, we consider a ``default'' SVM trained on the data set -- this is
+using a linear kernel (i.e. no higher-dimensional projection), \texttt{e1071}'s
+default parameter values ($C=1, \gamma=0.5$), no feature normalisation, and
+only including the training examples which contain no missing features (this is
+$68/452 \approx 15\%$ of the total dataset).
+
+The first 70\% of the training set (in the order presented) is used for
+training, with the remaining 30\% for testing. With this, an SVM with 26
+support vectors is calculated.\footnote{The support vectors are the input
+patterns with the following indices: 5  8  9 10 17 18 25 26 27 28 36 39 40 42
+44 46 48 12 13 15 16 22 24
+29 31 43}. Predicting on the test partition, we get $TP=16$, $TN=3$, $FP=2$ and
+   $FN=2$ (positive being A). Hence, we have a sensitivity of 0.89 (reasonable)
+   and specificity of
+0.6 (poor). The poor specificity is possibly due to the under-representation of
+  negative (healthy) training examples in the subset of complete training
+  patterns ($20 / 68 \approx 29\%$). This will be confirmed or refuted when
+  replacing missing values.
+
+
+\subsection{Missing Value Replacement}
+
+By ignoring incomplete records, we lose a significant amount of data. Since the
+missing values correspond to only $408/126560 \approx 0.3 \%$ of all values in
+the set of incomplete records, one would expect that guessing these values
+would yield better performance (assuming the bias from having a small dataset
+outweighs the noise of incorrectly guessing the missing values). In this test,
+we evaluate whether this holds, in this instance.
+
+The resultant SVM has $TP=37$, $TN=50$, $FP=19$ and $FN=30$ -- so the
+sensitivity is 0.66, and the specificity is 0.625. We have marginally improved
+the specificity, but at the expense of sensitivity, which is a fundamental
+trade-off in imperfect classification systems.
+
+\subsection{Feature Normalisation}
+
+Feature normalisation involves scaling all feature vectors $\mathbf{X_f}$
+(measurements of a feature $f$ in the dataset $X$) such that
+\hbox{$\mathbf{X_f} \sim \mathcal{N}(0,1)$}. 
+
+In all attempts with the linear kernel, there was no difference between the
+support vectors chosen, depending on whether the features were scaled or not.
+It intuitively makes sense that a hyperplane supported by the same input
+vectors can be fitted, independent of the features scaling. A multi-dimensional
+scaling of factor $\vec{c}$ applied to all points will result instead in the
+hyperplane scaled by $\vec{c}$ being fitted instead. Since the points have a
+linear relationship, the relative positions will be scale-invariant.
+
+\section{Parameter Tuning}
+
+A soft-margin SVM typically has one general parameter to tune (excluding kernel
+parameters): the \emph{cost parameter}, $C$ , to determine how readily to add
+slack variables in non-linearly separable data. This models the tradeoff
+between a cleanly-splitting hyperplane (low variance) and correctly classifying
+the data (low bias). 
+
+This is empirically tested over a wide range of orders of magnitude
+($1,10,20,40,60,80,100$), and using 10-fold cross validation on the entire
+data set, $C=1$ is determined to have optimal performance, with a classification
+error (fraction misclassified) of $0.458$.
+
+\section{Radial Basis Function Kernel}
+
+More sophisticated functions than linear hyperplanes can be fitted by an SVM,
+by projecting to a higher-dimensional space. A popular kernel function is the
+radial basis function (RBF)/Gaussian kernel, so this is demonstrated. The RBF
+kernel adds another parameter, $\gamma = -\frac{1}{2\sigma^2}$, which
+corresponds to the ``range of influence'' of a training example. This is tuned
+in parallel with $C$. All features are normalised (as is crucial for an RBF
+kernel), and with missing values replaced with 0. The parameter space is
+searched using grid search over many orders of magnitude. This is again using
+10-fold cross validation, so this is an estimation of generalisation
+performance. Figures 4.1 and 4.2 on the next pages show the results of this tuning.
+
+\begin{figure}[0.5\textwidth]
+\centering
+\begin{tabular}{r | c c | c c}
+ & $\gamma$ & $C$ & Error & Dispersion \\ \hline \hline
+1&1$^{-6}$&0.1&0.4582126&0.07396451\\
+2&1$^{-5}$&0.1&0.3139614&0.06385526\\
+3&1$^{-4}$&0.1&0.4582126&0.07396451\\
+4&1$^{-3}$&0.1&0.4582126&0.07396451\\
+5&1$^{-2}$&0.1&0.4582126&0.07396451\\
+6&1$^{-1}$&0.1&0.4582126&0.07396451\\ \hline
+7&1$^{-6}$&1.0&0.3206763&0.06398157\\
+8&1$^{-5}$&1.0&0.2253623&0.07169145\\
+9&1$^{-4}$&1.0&0.2853623&0.09015759\\
+10&1$^{-3}$&1.0&0.4582126&0.07396451\\
+11&1$^{-2}$&1.0&0.4582126&0.07396451\\
+12&1$^{-1}$&1.0&0.4582126&0.07396451\\ \hline
+\rowcolor{rowgrey}
+13&1$^{-6}$&10.0&0.2386957&0.05763836\\
+\rowcolor{white}
+14&1$^{-5}$&10.0&0.2452657&0.08072053\\
+15&1$^{-4}$&10.0&0.2896618&0.08593610\\
+16&1$^{-3}$&10.0&0.4582126&0.07396451\\
+17&1$^{-2}$&10.0&0.4582126&0.07396451\\
+18&1$^{-1}$&10.0&0.4582126&0.07396451\\
+\end{tabular}
+\caption{Results from tuning $\gamma$ and $C$ parameters of the SVM. Error
+refers to \emph{classification error} (proportion of all samples that are
+classified as false positive/false negative).}
+\label{tuningtable}
+\end{figure}
+
+\begin{figure}
+\includegraphics[width=16cm]{errorsurf.png}
+\caption{Contour plot of the error surface parameterised by $\gamma$ and $C$.}
+\label{tuningtable}
+\end{figure}
+
+\end{document}
